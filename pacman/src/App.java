@@ -10,6 +10,7 @@ import javax.swing.*;
 public class App extends JPanel implements KeyListener {
     private int pacManX, pacManY; // Координати Пакмана
     private int[] ghostX, ghostY; // Координати привидів
+    int foodX, foodY;
 
     private int score; // Рахунок
 
@@ -115,7 +116,7 @@ public class App extends JPanel implements KeyListener {
         setPreferredSize(new Dimension(CELL_SIZE * MAZE_WIDTH, CELL_SIZE * MAZE_HEIGHT));
 
         // Генерація випадкової позиції для їжі
-        int foodX, foodY;
+        //int foodX, foodY;
         do {
             foodX = (int) (Math.random() * MAZE_WIDTH);
             foodY = (int) (Math.random() * MAZE_HEIGHT);
@@ -378,7 +379,6 @@ public class App extends JPanel implements KeyListener {
     }
 
     public int[] greedy(int startX, int startY, int targetX, int targetY) {
-
         int dx = 0;
         int dy = 0;
 
@@ -386,71 +386,68 @@ public class App extends JPanel implements KeyListener {
         int diffX = targetX - startX;
         int diffY = targetY - startY;
 
-        // Пошук доступної позиції поруч, яка не є стінкою
-        for (int step = 1; step <= Math.max(Math.abs(diffX), Math.abs(diffY)); step++) {
-            int newX = startX + (int) Math.signum(diffX) * step;
-            int newY = startY + (int) Math.signum(diffY) * step;
-
-            if (!isObstacle(newX, newY)) {
-                dx = (int) Math.signum(diffX);
+        // Пошук горизонтального або вертикального руху до цілі
+        if (Math.abs(diffX) > Math.abs(diffY)) {
+            dx = (int) Math.signum(diffX);
+            if (isObstacle(startX + dx, startY)) {
+                dx = 0;
                 dy = (int) Math.signum(diffY);
-                break;
+            }
+        } else {
+            dy = (int) Math.signum(diffY);
+            if (isObstacle(startX, startY + dy)) {
+                dy = 0;
+                dx = (int) Math.signum(diffX);
             }
         }
 
-        // Перевірка чи нова позиція не є стінкою
+        // Якщо обидва напрямки блоковані, спробуємо вибрати інший напрямок
         if (isObstacle(startX + dx, startY + dy)) {
-            // Якщо нова позиція є стінкою, шукаємо іншу доступну позицію
-            for (int step = 1; step <= 4; step++) { // Шукати впродовж 4 можливих напрямків
-                int[] possibleMoves = {-1, 0, 1};
-                int randomIndex = (int) (Math.random() * possibleMoves.length);
-                dx = possibleMoves[randomIndex];
-                randomIndex = (int) (Math.random() * possibleMoves.length);
-                dy = possibleMoves[randomIndex];
-
-                int newX = startX + dx;
-                int newY = startY + dy;
-
-                if (!isObstacle(newX, newY)) {
+            dx = dy = 0;
+            int[] directions = {-1, 1};
+            for (int dir : directions) {
+                if (!isObstacle(startX + dir, startY)) {
+                    dx = dir;
+                    break;
+                }
+                if (!isObstacle(startX, startY + dir)) {
+                    dy = dir;
                     break;
                 }
             }
         }
 
-        // Перевірка чи нова позиція не є стінкою після пошуку
-        if (!isObstacle(startX + dx, startY + dy)) {
-            // Повернення значення типу int[]
-            return new int[]{dx, dy};
-        } else {
-            // Якщо не вдалося знайти доступну позицію, повертаємо нульовий рух
-            return new int[]{0, 0};
-        }
+        return new int[]{dx, dy};
     }
 
-
-
-
     public void moveGhosts() {
-
         for (int i = 0; i < ghostX.length; i++) {
             int targetX = pacManX;
             int targetY = pacManY;
-            int[] nextMove= {0,0};
-            if (i == 0) {
-                nextMove = aStar(ghostX[i], ghostY[i], targetX, targetY);
-            } else  {
-                nextMove = greedy(ghostX[i], ghostY[i], targetX, targetY);
+            int[] nextMove = {0, 0};
 
+            if (i == 0) {  // Перший привід слідкує за Pac-Man за допомогою A* алгоритму
+                nextMove = aStar(ghostX[i], ghostY[i], targetX, targetY);
+            } else if (i == 2) {  // Третій привід (індекс 2) патрулює навколо їжі
+                int distanceToFood = Math.abs(ghostX[i] - foodX) + Math.abs(ghostY[i] - foodY);
+                if (distanceToFood > 1) {
+                    targetX = foodX;
+                    targetY = foodY;
+                    nextMove = aStar(ghostX[i], ghostY[i], targetX, targetY);
+                } else {
+                    // Якщо привід вже поруч з їжею, зупиняємо його рух
+                    nextMove = new int[]{0, 0};
+                }
+            } else if (i == 1) {  // Інші привиди використовують жадібний алгоритм для слідкування за Pac-Man
+                nextMove = greedy(ghostX[i], ghostY[i], targetX, targetY);
             }
+
             int dx = nextMove[0];
             int dy = nextMove[1];
 
             ghostX[i] += dx;
             ghostY[i] += dy;
-
         }
-
-
 
         try {
             Thread.sleep(20);
